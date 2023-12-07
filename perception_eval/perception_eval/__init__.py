@@ -12,6 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import pkg_resources
+# import pkg_resources
 
-__version__ = pkg_resources.get_distribution("perception_eval").version
+# __version__ = pkg_resources.get_distribution("perception_eval").version
