@@ -18,7 +18,7 @@ from perception_eval.evaluation.metrics import MetricsScore
 from perception_eval.evaluation.result.perception_frame_config import CriticalObjectFilterConfig
 from perception_eval.evaluation.result.perception_frame_config import PerceptionPassFailConfig
 from perception_eval.manager import PerceptionEvaluationManager
-from perception_eval.perception_eval.common.schema import FrameID
+from perception_eval.common.schema import FrameID
 from perception_eval.tool import PerceptionAnalyzer3D
 from perception_eval.util.debug import format_class_for_log
 from perception_eval.util.debug import get_objects_with_difference
@@ -35,7 +35,7 @@ class PerceptionLSimMoc:
         evaluation_config_dict = {
             "evaluation_task": evaluation_task,
             # ラベル，max x/y，マッチング閾値 (detection/tracking/predictionで共通)
-            "target_labels": ["car", "truck", "bus", "bicycle", "pedestrian"],
+            "target_labels": ["car", "bicycle", "pedestrian"],
             "ignore_attributes": ["cycle_state.without_rider"],
             # max x/y position or max/min distanceの指定が必要
             # # max x/y position
@@ -50,17 +50,17 @@ class PerceptionLSimMoc:
             # "target_uuids": ["foo", "bar"],
             # objectごとにparamを設定
             "center_distance_thresholds": [
-                [1.0, 1.0, 1.0, 1.0, 1.0],
-                [2.0, 2.0, 2.0, 2.0, 2.0],
+                [1.0, 1.0, 1.0],
+                [2.0, 2.0, 2.0],
             ],  # = [[1.0, 1.0, 1.0, 1.0], [2.0, 2.0, 2.0, 2.0]]
             # objectごとに同じparamの場合はこのような指定が可能
             "plane_distance_thresholds": [
                 2.0,
                 3.0,
             ],  # = [[2.0, 2.0, 2.0, 2.0], [3.0, 3.0, 3.0, 3.0]]
-            "iou_2d_thresholds": [0.5, 0.5, 0.5, 0.5, 0.5],  # = [[0.5, 0.5, 0.5, 0.5]]
+            "iou_2d_thresholds": [0.5, 0.5, 0.5],  # = [[0.5, 0.5, 0.5, 0.5]]
             "iou_3d_thresholds": [0.5],  # = [[0.5, 0.5, 0.5, 0.5]]
-            "min_point_numbers": [0, 0, 0, 0, 0],
+            "min_point_numbers": [0, 0, 0],
             "max_matchable_radii": 5.0,  # = [5.0, 5.0, 5.0, 5.0]
             # label parameters
             "label_prefix": "autoware",
@@ -103,16 +103,16 @@ class PerceptionLSimMoc:
         # どれを注目物体とするかのparam
         critical_object_filter_config: CriticalObjectFilterConfig = CriticalObjectFilterConfig(
             evaluator_config=self.evaluator.evaluator_config,
-            target_labels=["car", "truck", "bus", "bicycle", "pedestrian"],
+            target_labels=["car", "bicycle", "pedestrian"],
             ignore_attributes=["cycle_state.without_rider"],
-            max_x_position_list=[30.0, 30.0, 30.0, 30.0, 30.0],
-            max_y_position_list=[30.0, 30.0, 30.0, 30.0, 30.0],
+            max_x_position_list=[30.0, 30.0, 30.0],
+            max_y_position_list=[30.0, 30.0, 30.0],
         )
         # Pass fail を決めるパラメータ
         frame_pass_fail_config: PerceptionPassFailConfig = PerceptionPassFailConfig(
             evaluator_config=self.evaluator.evaluator_config,
-            target_labels=["car", "truck", "bus", "bicycle", "pedestrian"],
-            matching_threshold_list=[2.0, 2.0, 2.0, 2.0, 2.0],
+            target_labels=["car", "bicycle", "pedestrian"],
+            matching_threshold_list=[2.0, 2.0, 2.0],
         )
 
         frame_result = self.evaluator.add_frame_result(
@@ -165,7 +165,7 @@ class PerceptionLSimMoc:
         detections = []
         file = open(file_path)
         for line in file:
-            line = map(float, line.split())
+            line = list(map(float, line.split()))
             label = int(line[0])
             score = line[1]
             x, y, z = line[2], line[3], line[4]
@@ -174,7 +174,7 @@ class PerceptionLSimMoc:
             vel_x, vel_y = line[9], line[10]
 
             unix_time = 0
-            frame_id = FrameID().from_value("base_link")
+            frame_id = FrameID.from_value("base_link")
             for frame in self.evaluator.ground_truth_frames:
                 if frame.frame_name == file_name:
                     unix_time = frame.unix_time
@@ -182,9 +182,9 @@ class PerceptionLSimMoc:
 
             frame_id = "base_link"
             orientation = Quaternion(axis=(0.0, 0.0, 1.0), radians=yaw)
-            shape = Shape(shape_type=ShapeType.BOUNDING_BOX, size=tuple(length, width, height))
-            velocity = tuple(vel_x, vel_y, 0.0)
-            position = tuple(x, y, z)
+            shape = Shape(shape_type=ShapeType.BOUNDING_BOX, size=(length, width, height))
+            velocity = (vel_x, vel_y, 0.0)
+            position = (x, y, z)
             uuid = file_name
             lc = LabelConverter("detection", False, "autoware")
             semantic_label = lc.convert_label(classes[label])
@@ -229,10 +229,10 @@ class PerceptionLSimMoc:
 # scene_score = evaluator.get_scene_result()
 
 
-dataset_path = "/home/xinyuwang/adehome/eval_dataset/DBv2.0_nishi_shinjuku_6-3-9d847f22-a8e4-430c-918e-102341f01311/data"
-result_root_directory = "/home/xinyuwang/adehome/eval_dataset/result"
-detection_path = "/home/develop/dataset/detection/"
-classes = ["car", "truck", "bus", "bicycle", "pedestrain"]
+dataset_path = "/home/development/DBv2.0_nishi_shinjuku_6-3"
+result_root_directory = "/home/development/eval_dataset/result"
+detection_path = "/home/development/quantization_lib/data/test/objects_fp16/"
+classes = ["car", "bicycle", "pedestrain"]
 detection_lsim = PerceptionLSimMoc([dataset_path], "detection", result_root_directory)
 for frame in detection_lsim.evaluator.ground_truth_frames:
     print(frame.frame_name)
