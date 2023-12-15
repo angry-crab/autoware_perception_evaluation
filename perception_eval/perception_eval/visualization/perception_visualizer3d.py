@@ -28,6 +28,12 @@ from matplotlib.patches import Rectangle
 import matplotlib.pyplot as plt
 from matplotlib.transforms import Affine2D
 import numpy as np
+from PIL import Image
+from PIL.Image import Image as PILImage
+from pyquaternion import Quaternion
+from tqdm import tqdm
+import yaml
+
 from perception_eval.common.evaluation_task import EvaluationTask
 from perception_eval.common.object import DynamicObject
 from perception_eval.common.schema import FrameID
@@ -36,11 +42,6 @@ from perception_eval.evaluation import DynamicObjectWithPerceptionResult
 from perception_eval.evaluation import PerceptionFrameResult
 from perception_eval.util.math import rotation_matrix_to_euler
 from perception_eval.visualization.color import ColorMap
-from PIL import Image
-from PIL.Image import Image as PILImage
-from pyquaternion import Quaternion
-from tqdm import tqdm
-import yaml
 
 
 class PerceptionVisualizer3D:
@@ -511,3 +512,128 @@ class PerceptionVisualizer3D:
             frame_ = np.array(frame.copy())
             video.write(cv2.cvtColor(frame_, cv2.COLOR_RGB2BGR))
         video.release()
+
+    def visualize_all_objects(
+        self,
+        frame_results: List[PerceptionFrameResult],
+        filename: Optional[str] = None,
+        cache_figure: bool = False,
+    ) -> None:
+        """Visualize all frames in BEV space.
+
+        Args:
+            frame_results (List[PerceptionFrameResult]): The list of PerceptionFrameResult.
+            save_html (bool): Wether save image as html. Defaults to False.
+            animation (bool): Whether create animation as gif. Defaults to False.
+            cache_figure (bool): Whether cache figure for each frame. Defaults to False.
+        """
+        if self.config.evaluation_task == EvaluationTask.TRACKING:
+            self.__tracked_paths = {}
+
+        frame_result_: PerceptionFrameResult
+        for frame_result_ in tqdm(frame_results, desc="Visualize results for each frame"):
+            self.__axes: Axes = self.visualize_frame_objects(frame_result=frame_result_, axes=self.__axes)
+            if cache_figure is False:
+                self.__axes.clear()
+
+        # save animation as gif
+        self.__save_animation(filename)
+        self.clear()
+
+    def visualize_frame_objects(
+        self,
+        frame_result: PerceptionFrameResult,
+        axes: Optional[np.ndarray] = None,
+    ) -> np.ndarray:
+        """Visualize a frame result on image.
+
+        Color:
+            TP estimated    : Blue
+            TP GT           : Red
+            FP              : Cyan
+            TN              : Purple
+            FN              : Orange
+
+        Args:
+            frame_result (PerceptionFrameResult)
+            axes (Optional[numpy.ndarray]): Axes instances. Defaults to None.
+
+        Returns:
+            numpy.ndarray: Numpy array of Axes instances.
+        """
+        if axes is None:
+            axes: Axes = plt.subplot()
+
+        frame_number: str = frame_result.frame_ground_truth.frame_name
+        axes.set_title(f"Frame: {frame_number} ({self.config.frame_ids[0].value})")
+        axes.set_xlabel("x [m]")
+        axes.set_ylabel("y [m]")
+
+        # Plot ego vehicle position
+        axes = self._plot_ego(
+            ego2map=frame_result.frame_ground_truth.ego2map,
+            axes=axes,
+        )
+
+        pointcloud: Optional[np.ndarray] = (
+            frame_result.frame_ground_truth.raw_data["lidar"] if self.config.load_raw_data else None
+        )
+
+        # Plot objects
+        handles: List[Patch] = []
+        axes = self.plot_objects(
+            objects=frame_result.object_results,
+            is_ground_truth=False,
+            axes=axes,
+            color="blue",
+        )
+        handles.append(Patch(color="blue", label="Detected"))
+
+        axes = self.plot_objects(
+            objects=frame_result.frame_ground_truth.objects,
+            is_ground_truth=True,
+            axes=axes,
+            color="red",
+        )
+        handles.append(Patch(color="red", label="GT"))
+
+        # axes = self.plot_objects(
+        #     objects=frame_result.pass_fail_result.fp_object_results,
+        #     is_ground_truth=False,
+        #     axes=axes,
+        #     color="cyan",
+        # )
+        # handles.append(Patch(color="cyan", label="FP"))
+
+        # axes = self.plot_objects(
+        #     objects=frame_result.pass_fail_result.tn_objects,
+        #     is_ground_truth=True,
+        #     axes=axes,
+        #     color="purple",
+        # )
+        # handles.append(Patch(color="purple", label="TN"))
+
+        # axes = self.plot_objects(
+        #     objects=frame_result.pass_fail_result.fn_objects,
+        #     is_ground_truth=True,
+        #     axes=axes,
+        #     color="orange",
+        # )
+        # handles.append(Patch(color="orange", label="FN"))
+
+        self.__figure.legend(
+            handles=handles,
+            bbox_to_anchor=(1.0, 1.1),
+            loc="lower right",
+            ncol=4,
+            borderaxespad=0,
+            markerscale=10.0,
+        )
+
+        self.__figure.tight_layout()
+        filepath: str = osp.join(self.config.visualization_directory, f"{frame_number}.png")
+        plt.savefig(filepath, format="png")
+        frame = Image.open(filepath)
+        self.__animation_frames.append(frame)
+
+        return axes

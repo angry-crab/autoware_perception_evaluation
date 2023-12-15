@@ -113,7 +113,7 @@ class _EvaluationMangerBase(ABC):
 
     def visualize_all(self) -> None:
         """Visualize object result in BEV space for all frames."""
-        self.visualizer.visualize_all(self.frame_results)
+        self.visualizer.visualize_all_objects(self.frame_results)
 
     def visualize_frame(self, frame_index: int = -1) -> None:
         """[summary]

@@ -106,10 +106,13 @@ class PerceptionEvaluationManager(_EvaluationMangerBase):
         Returns:
             PerceptionFrameResult: Evaluation result.
         """
+        # print("len before: " + str(len(estimated_objects)) + " , " + str(len(ros_critical_ground_truth_objects)))
         object_results, ground_truth_now_frame = self._filter_objects(
             estimated_objects,
             ground_truth_now_frame,
         )
+
+        # print("len before: " + str(len(object_results)) + " , " + str(len(ros_critical_ground_truth_objects)))
 
         result = PerceptionFrameResult(
             object_results=object_results,
